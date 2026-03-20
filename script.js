@@ -311,7 +311,7 @@ const overlays={pause:$('overlay-pause'),levelup:$('overlay-levelup'),gameover:$
 // ══════════════════════════════════════════
 let actx=null;
 function getACtx(){ if(!actx) actx=new(window.AudioContext||window.webkitAudioContext)(); return actx; }
-function tone(f,type='sine',dur=.15,vol=.15,delay=0){
+function tone(f,type='sine',dur=.15,vol=1.0,delay=0){
   if(state.muted) return;
   try{
     const c=getACtx(),o=c.createOscillator(),g=c.createGain();
@@ -670,19 +670,39 @@ function checkChallenge(){
   const hash=location.hash.slice(1);if(!hash)return;
   try{
     const params=new URLSearchParams(hash);
-    const word=params.get('w');const from=params.get('f')||'?';
+    const word=params.get('w');
+    const from=params.get('f')||'?';
+    const diff=params.get('d')||state.difficulty;
     if(!word)return;
+
+    // Cherche le vrai indice dans la base de données
+    const wordUpper=word.toUpperCase();
+    const allWords=[
+      ...(WORDS_DB[lang]||WORDS_DB.fr).easy,
+      ...(WORDS_DB[lang]||WORDS_DB.fr).medium,
+      ...(WORDS_DB[lang]||WORDS_DB.fr).hard,
+      ...WORDS_DB.fr.easy,...WORDS_DB.fr.medium,...WORDS_DB.fr.hard,
+      ...WORDS_DB.en.easy,...WORDS_DB.en.medium,...WORDS_DB.en.hard,
+    ];
+    const found=allWords.find(w=>w.word===wordUpper);
+
+    window._challengeWord={
+      word:wordUpper,
+      clue: found ? found.clue : '❓ Trouve ce mot secret !',
+      category: found ? found.category : 'Défi 💌'
+    };
+
     $('challenge-bar').classList.remove('hidden');
     $('challenge-text').textContent=t('challenge_received')+from+' — '+t('challenge_word');
-    // inject word at front of queue when game starts
-    window._challengeWord={word:word.toUpperCase(),clue:'— Défi —',category:'Défi 💌'};
-  }catch(e){}
+  }catch(e){console.error('Challenge error:',e);}
 }
 function shareChallenge(){
-  if(!state.currentWord&&(!state.wordQueue||!state.wordQueue.length))return;
-  const word=(state.currentWord||state.wordQueue[0]||{}).word||'AMOUR';
-  const url=`${location.href.split('#')[0]}#w=${word}&f=${encodeURIComponent(profile.name||'Ami')}`;
-  navigator.clipboard.writeText(url).then(()=>showAchievementToast('💌',t('challenge_share_title'),t('challenge_share_text'))).catch(()=>{});
+  const word=(state.currentWord||state.wordQueue&&state.wordQueue[0]||null);
+  const w=word?word.word:'AMOUR';
+  const url=`${location.href.split('#')[0]}#w=${encodeURIComponent(w)}&f=${encodeURIComponent(profile.name||'Ami')}&d=${state.difficulty}`;
+  navigator.clipboard.writeText(url)
+    .then(()=>showAchievementToast('💌',t('challenge_share_title'),url))
+    .catch(()=>prompt('Copie ce lien :',url));
 }
 
 // ══════════════════════════════════════════
